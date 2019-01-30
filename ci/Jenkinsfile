@@ -154,7 +154,9 @@ try {
 		if (env.GERRIT_EVENT_TYPE == "change-merged") {
 			if (currentBuild.currentResult == "SUCCESS") {
 				runOnSlave(label: "frontend") {
-					deployModule([name: "ppu-toolchain", source: "install"])
+					inSingularity(app: "visionary-dls") {
+						deployModule([name: "ppu-toolchain", source: "install"])
+					}
 				}
 			} else {
 				echo "Deployment skipped: Unstable build."
