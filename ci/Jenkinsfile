@@ -3,8 +3,8 @@
 branch = [2: "master", 3: "v3testing"]
 setup = [2: "B291656", 3: "B291673"]
 configureOptions = ["", "--enable-stack-protector", "--enable-stack-redzone", "--enable-stack-protector --enable-stack-redzone"]
-buildProfiles = ["debug", "release"]
-targets = ["", "--target='*'"]
+buildProfiles = ["", "debug", "release"]
+targets = ["", "'*'"]
 v3_network_power_socket_ip = "129.206.176.148"
 v3_network_power_socket_socket = "3"
 
@@ -41,10 +41,12 @@ try {
 	}
 
 	for (String target in targets) {
+		String targetOption = target.length() ? "--target=${target}" : ""
 		for (String buildProfile in buildProfiles) {
+			String buildProfileOption = buildProfile.length() ? "--build-profile=${buildProfile}" : ""
 			for (String configureOption in configureOptions) {
 				for (String dlsVersion in [2, 3]) {
-					String runString = "DLSv${dlsVersion}, build-profile: ${buildProfile}, options: ${configureOption}, ${target}"
+					String runString = "DLSv${dlsVersion}, build-profile: ${buildProfile}, options: ${configureOption}, ${targetOption}"
 
 					inSingularity(app: "visionary-dls") {
 						stage("Test Setup ${runString}") {
@@ -53,7 +55,7 @@ try {
 									wafSetup(projects: ["libnux",
 									                    "hicann-dls-scripts@${branch[dlsVersion]}",
 									                    "frickel-dls@${branch[dlsVersion]}"],
-									         setupOptions: "--clone-depth=1 --build-profile=${buildProfile}")
+									         setupOptions: "--clone-depth=1 ${buildProfileOption}")
 								}
 							}
 						}
@@ -72,7 +74,7 @@ try {
 												     "--cross-prefix powerpc-ppu " +
 												     "--dls-version ${dlsVersion} " +
 												     "--test-timeout=240 " +
-												     "${target} " +
+												     "${targetOption} " +
 												     "install --test-execnone" +
 												     "|& tee build_dls_\"${runString}\".log"
 											}
