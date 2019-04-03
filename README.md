@@ -56,10 +56,5 @@ powerpc-ppu-gcc
 powerpc-ppu-nm
 ```
 
-For using the toolchain with waf, this prefix is to be propagated via the `configure` option:
-```
---cross-prefix=powerpc-ppu.
-```
-
-In order to link with libc and libstdc++, the ordered list of `['stdc++', 'c', 'm', 'g', 'gcc']`
+For linking the toolchain with libc and libstdc++ using waf, the ordered list of `['stdc++', 'c', 'm', 'g', 'gcc']`
 needs to be appended to `conf.env.STLIB` in the configure step of the wscript.

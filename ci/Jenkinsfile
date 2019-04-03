@@ -71,7 +71,6 @@ try {
 											dir("dls_v${dlsVersion}") {
 												jesh "waf configure " +
 												     "${configureOption} " +
-												     "--cross-prefix powerpc-ppu " +
 												     "--dls-version ${dlsVersion} " +
 												     "--test-timeout=240 " +
 												     "${targetOption} " +
