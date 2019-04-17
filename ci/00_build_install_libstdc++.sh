@@ -11,6 +11,14 @@ export PATH="$prefix/bin:$sysroot/bin:$PATH"
 
 export CPATH="$sysroot/include"
 
+export -n C_INCLUDE_PATH
+export -n CPLUS_INCLUDE_PATH
+export -n CC
+export -n CXX
+export -n CFLAGS
+export -n CXXFLAGS
+export -n LDFLAGS
+
 cxxflags="-fno-exceptions -ffunction-sections -fdata-sections"
 
 config_options_libstd="
