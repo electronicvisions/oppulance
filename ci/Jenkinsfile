@@ -13,24 +13,23 @@ try {
 		cleanWs()
 	}
 
-	inSingularity(app: "visionary-dls") {
-		stage('Checkout') {
+	stage("Toolchain Creation") {
+		inSingularity(app: "visionary-dls") {
 			runOnSlave(label: "frontend") {
 				dir("ppu") {
 					checkout scm
 				}
 				wafSetup(projects: ["binutils-gdb@binutils-2_25-branch-nux",
 				                    "gcc@nux-on-gcc-4_9_4-release",
-				                    "newlib@master"])
+				                    "newlib@master"],
+				         noExtraStage: true)
 				jesh "bash gcc/ci/00_download_prerequisites.sh"
 				// power_cycle script for dls_v3, to be deleted once #3073 is working
 				dir("config-slurm") {
 					git url: "ssh://hudson@brainscales-r.kip.uni-heidelberg.de:29418/config-slurm.git"
 				}
 			}
-		}
 
-		stage("Build") {
 			onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
 				jesh "bash binutils-gdb/ci/00_build_install.sh"
 				jesh "bash gcc/ci/01_build_install_freestanding.sh"
@@ -47,22 +46,20 @@ try {
 			for (String configureOption in configureOptions) {
 				for (String dlsVersion in [2, 3]) {
 					String runString = "DLSv${dlsVersion}, build-profile: ${buildProfile}, options: ${configureOption}, ${targetOption}"
-
-					inSingularity(app: "visionary-dls") {
-						stage("Test Setup ${runString}") {
+					stage("Toolchain Verification: ${runString}") {
+						inSingularity(app: "visionary-dls") {
 							runOnSlave(label: "frontend") {
 								dir("dls_v${dlsVersion}") {
 									wafSetup(projects: ["libnux",
 									                    "hicann-dls-scripts@${branch[dlsVersion]}",
 									                    "frickel-dls@${branch[dlsVersion]}"],
-									         setupOptions: "--clone-depth=1 ${buildProfileOption}")
+									         setupOptions: "--clone-depth=1 ${buildProfileOption}",
+									         noExtraStage: true)
 								}
 							}
 						}
-					}
 
-					withWaf() {
-						stage("Test Build ${runString}") {
+						withWaf() {
 							onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
 								withModules(modules: ["xilinx/143"]) {
 									withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
@@ -81,9 +78,7 @@ try {
 									}
 								}
 							}
-						}
 
-						stage("Test Run Hardware Test ${runString}") {
 							onSlurmResource(partition: "dls", gres: "${setup[dlsVersion]}") {
 								withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
 								         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
@@ -107,9 +102,7 @@ try {
 								}
 							}
 						}
-					}
 
-					stage("Test Evaluate XML, build-profile: ${buildProfile}, options: ${configureOption}") {
 						runOnSlave(label: "frontend") {
 							step([$class       : 'XUnitBuilder',
 							      thresholdMode: 1,
