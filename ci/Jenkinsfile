@@ -1,6 +1,5 @@
 @Library("jenlib") _
 
-branch = [2: "master", 3: "v3testing"]
 setup = [2: "B291656", 3: "B291673"]
 configureOptions = ["", "--enable-stack-protector", "--enable-stack-redzone", "--enable-stack-protector --enable-stack-redzone"]
 buildProfiles = ["", "debug", "release"]
@@ -50,10 +49,10 @@ try {
 						inSingularity(app: "visionary-dls") {
 							runOnSlave(label: "frontend") {
 								dir("dls_v${dlsVersion}") {
-									wafSetup(projects: ["libnux",
-									                    "hicann-dls-scripts@${branch[dlsVersion]}",
-									                    "frickel-dls@${branch[dlsVersion]}"],
-									         setupOptions: "--clone-depth=1 ${buildProfileOption}",
+									wafSetup(projects: ["libnux"],
+									         setupOptions: "--clone-depth=1 " +
+									                       "--dls-version=${dlsVersion} " +
+									                       "${buildProfileOption}",
 									         noExtraStage: true)
 								}
 							}
@@ -68,7 +67,6 @@ try {
 											dir("dls_v${dlsVersion}") {
 												jesh "waf configure " +
 												     "${configureOption} " +
-												     "--dls-version ${dlsVersion} " +
 												     "--test-timeout=240 " +
 												     "${targetOption} " +
 												     "install --test-execnone" +
