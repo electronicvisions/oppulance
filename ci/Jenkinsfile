@@ -7,167 +7,169 @@ targets = ["", "'*'"]
 v3_network_power_socket_ip = "129.206.176.148"
 v3_network_power_socket_socket = "3"
 
-try {
-	runOnSlave(label: "frontend") {
-		cleanWs()
-	}
+timestamps {
+	try {
+		runOnSlave(label: "frontend") {
+			cleanWs()
+		}
 
-	stage("Toolchain Creation") {
-		inSingularity(app: "visionary-dls") {
-			runOnSlave(label: "frontend") {
-				dir("ppu") {
-					checkout scm
+		stage("Toolchain Creation") {
+			inSingularity(app: "visionary-dls") {
+				runOnSlave(label: "frontend") {
+					dir("ppu") {
+						checkout scm
+					}
+					wafSetup(projects: ["binutils-gdb@binutils-2_25-branch-nux",
+					                    "gcc@nux-on-gcc-4_9_4-release",
+					                    "newlib@master"],
+					         noExtraStage: true)
+					jesh "bash gcc/ci/00_download_prerequisites.sh"
+					// power_cycle script for dls_v3, to be deleted once #3073 is working
+					dir("config-slurm") {
+						git url: "ssh://hudson@brainscales-r.kip.uni-heidelberg.de:29418/config-slurm.git"
+					}
 				}
-				wafSetup(projects: ["binutils-gdb@binutils-2_25-branch-nux",
-				                    "gcc@nux-on-gcc-4_9_4-release",
-				                    "newlib@master"],
-				         noExtraStage: true)
-				jesh "bash gcc/ci/00_download_prerequisites.sh"
-				// power_cycle script for dls_v3, to be deleted once #3073 is working
-				dir("config-slurm") {
-					git url: "ssh://hudson@brainscales-r.kip.uni-heidelberg.de:29418/config-slurm.git"
-				}
-			}
 
-			onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
-				jesh "bash binutils-gdb/ci/00_build_install.sh"
-				jesh "bash gcc/ci/01_build_install_freestanding.sh"
-				jesh "bash newlib/ci/00_build_install.sh"
-				jesh "bash ppu/ci/00_build_install_libstdc++.sh"
+				onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
+					jesh "bash binutils-gdb/ci/00_build_install.sh"
+					jesh "bash gcc/ci/01_build_install_freestanding.sh"
+					jesh "bash newlib/ci/00_build_install.sh"
+					jesh "bash ppu/ci/00_build_install_libstdc++.sh"
+				}
 			}
 		}
-	}
 
-	for (String target in targets) {
-		String targetOption = target.length() ? "--target=${target}" : ""
-		for (String buildProfile in buildProfiles) {
-			String buildProfileOption = buildProfile.length() ? "--build-profile=${buildProfile}" : ""
-			for (String configureOption in configureOptions) {
-				for (String dlsVersion in [2, 3]) {
-					String runString = "DLSv${dlsVersion}, build-profile: ${buildProfile}, options: ${configureOption}, ${targetOption}"
-					stage("Toolchain Verification: ${runString}") {
-						inSingularity(app: "visionary-dls") {
-							runOnSlave(label: "frontend") {
-								dir("dls_v${dlsVersion}") {
-									wafSetup(projects: ["libnux"],
-									         setupOptions: "--clone-depth=1 " +
-									                       "--dls-version=${dlsVersion} " +
-									                       "${buildProfileOption}",
-									         noExtraStage: true)
+		for (String target in targets) {
+			String targetOption = target.length() ? "--target=${target}" : ""
+			for (String buildProfile in buildProfiles) {
+				String buildProfileOption = buildProfile.length() ? "--build-profile=${buildProfile}" : ""
+				for (String configureOption in configureOptions) {
+					for (String dlsVersion in [2, 3]) {
+						String runString = "DLSv${dlsVersion}, build-profile: ${buildProfile}, options: ${configureOption}, ${targetOption}"
+						stage("Toolchain Verification: ${runString}") {
+							inSingularity(app: "visionary-dls") {
+								runOnSlave(label: "frontend") {
+									dir("dls_v${dlsVersion}") {
+										wafSetup(projects: ["libnux"],
+										         setupOptions: "--clone-depth=1 " +
+										                       "--dls-version=${dlsVersion} " +
+										                       "${buildProfileOption}",
+										         noExtraStage: true)
+									}
 								}
 							}
-						}
 
-						withWaf() {
-							onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
-								withModules(modules: ["xilinx/143"]) {
+							withWaf() {
+								onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
+									withModules(modules: ["xilinx/143"]) {
+										withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
+										         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
+											inSingularity(app: "visionary-dls") {
+												dir("dls_v${dlsVersion}") {
+													jesh "waf configure " +
+													     "${configureOption} " +
+													     "--test-timeout=240 " +
+													     "${targetOption} " +
+													     "install --test-execnone" +
+													     "|& tee build_dls_\"${runString}\".log"
+												}
+											}
+										}
+									}
+								}
+
+								onSlurmResource(partition: "dls", gres: "${setup[dlsVersion]}") {
 									withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
 									         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
-										inSingularity(app: "visionary-dls") {
-											dir("dls_v${dlsVersion}") {
-												jesh "waf configure " +
-												     "${configureOption} " +
-												     "--test-timeout=240 " +
-												     "${targetOption} " +
-												     "install --test-execnone" +
-												     "|& tee build_dls_\"${runString}\".log"
-											}
-										}
-									}
-								}
-							}
-
-							onSlurmResource(partition: "dls", gres: "${setup[dlsVersion]}") {
-								withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
-								         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
-									withModules(modules: ["xilinx/143"]) {
-										inSingularity(app: "visionary-dls") {
-											dir("dls_v${dlsVersion}") {
-												if (dlsVersion == 3) {
-													// To be deleted once #3073 is working
-													runOnSlave(label: "frontend") {
-														jesh "python $WORKSPACE/config-slurm/power_cycle.py -p spikey -i ${v3_network_power_socket_ip} -s ${v3_network_power_socket_socket}"
+										withModules(modules: ["xilinx/143"]) {
+											inSingularity(app: "visionary-dls") {
+												dir("dls_v${dlsVersion}") {
+													if (dlsVersion == 3) {
+														// To be deleted once #3073 is working
+														runOnSlave(label: "frontend") {
+															jesh "python $WORKSPACE/config-slurm/power_cycle.py -p spikey -i ${v3_network_power_socket_ip} -s ${v3_network_power_socket_socket}"
+														}
+														jesh "waf install --target=pydls --test-execnone"
+														withEnv(["PYTHONPATH+PYDLS=$WORKSPACE/dls_v3/lib"]) {
+															jesh "python hicann-dls-scripts/helper/pll_init.py"
+														}
 													}
-													jesh "waf install --target=pydls --test-execnone"
-													withEnv(["PYTHONPATH+PYDLS=$WORKSPACE/dls_v3/lib"]) {
-														jesh "python hicann-dls-scripts/helper/pll_init.py"
-													}
+													jesh "waf install -j1 --test-execall"
 												}
-												jesh "waf install -j1 --test-execall"
 											}
 										}
 									}
 								}
 							}
-						}
 
-						runOnSlave(label: "frontend") {
-							step([$class       : 'XUnitBuilder',
-							      thresholdMode: 1,
-							      thresholds   : [[$class           : 'FailedThreshold',
-							                       unstableThreshold: '0'],
-							      ],
-							      tools        : [[$class               : 'GoogleTestType',
-							                       deleteOutputFiles    : true,
-							                       failIfNotNew         : true,
-							                       pattern              : "dls_v${dlsVersion}/build/test_results/**/*.xml",
-							                       skipNoTestFiles      : false,
-							                       stopProcessingIfError: true]
-							      ]
-							])
+							runOnSlave(label: "frontend") {
+								step([$class       : 'XUnitBuilder',
+								      thresholdMode: 1,
+								      thresholds   : [[$class           : 'FailedThreshold',
+								                       unstableThreshold: '0'],
+								      ],
+								      tools        : [[$class               : 'GoogleTestType',
+								                       deleteOutputFiles    : true,
+								                       failIfNotNew         : true,
+								                       pattern              : "dls_v${dlsVersion}/build/test_results/**/*.xml",
+								                       skipNoTestFiles      : false,
+								                       stopProcessingIfError: true]
+								      ]
+								])
+							}
 						}
 					}
 				}
 			}
 		}
-	}
 
-	stage("Evaluate Compiler Warnings") {
-		runOnSlave(label: "frontend") {
-			warnings canComputeNew: false,
-			         canRunOnFailed: true,
-			         categoriesPattern: '',
-			         parserConfigurations: [[parserName: 'GNU C Compiler 4 (gcc)', pattern: 'dls_v2/build_dls_*.log'],
-			                                [parserName: 'GNU C Compiler 4 (gcc)', pattern: 'dls_v3/build_dls_*.log']],
-			         defaultEncoding: '',
-			         excludePattern: '*/python2.7/*',
-			         healthy: '',
-			         includePattern: '',
-			         messagesPattern: '',
-			         unHealthy: '',
-			         unstableTotalAll: '0',
-			         unstableTotalHigh: '0',
-			         unstableTotalLow: '0',
-			         unstableTotalNormal: '0'
+		stage("Evaluate Compiler Warnings") {
+			runOnSlave(label: "frontend") {
+				warnings canComputeNew: false,
+				         canRunOnFailed: true,
+				         categoriesPattern: '',
+				         parserConfigurations: [[parserName: 'GNU C Compiler 4 (gcc)', pattern: 'dls_v2/build_dls_*.log'],
+				                                [parserName: 'GNU C Compiler 4 (gcc)', pattern: 'dls_v3/build_dls_*.log']],
+				         defaultEncoding: '',
+				         excludePattern: '*/python2.7/*',
+				         healthy: '',
+				         includePattern: '',
+				         messagesPattern: '',
+				         unHealthy: '',
+				         unstableTotalAll: '0',
+				         unstableTotalHigh: '0',
+				         unstableTotalLow: '0',
+				         unstableTotalNormal: '0'
+			}
 		}
-	}
 
-	stage("Deployment") {
-		if (env.GERRIT_EVENT_TYPE == "change-merged") {
-			if (currentBuild.currentResult == "SUCCESS") {
-				runOnSlave(label: "frontend") {
-					inSingularity(app: "visionary-dls") {
-						deployModule([name: "ppu-toolchain", source: "install"])
+		stage("Deployment") {
+			if (env.GERRIT_EVENT_TYPE == "change-merged") {
+				if (currentBuild.currentResult == "SUCCESS") {
+					runOnSlave(label: "frontend") {
+						inSingularity(app: "visionary-dls") {
+							deployModule([name: "ppu-toolchain", source: "install"])
+						}
 					}
+				} else {
+					echo "Deployment skipped: Unstable build."
 				}
 			} else {
-				echo "Deployment skipped: Unstable build."
+				echo "Deployment skipped: Build was not triggered by a merge event."
 			}
-		} else {
-			echo "Deployment skipped: Build was not triggered by a merge event."
+		}
+	} catch (Throwable t) {
+		notifyFailure(mattermostChannel: "#dls-software")
+		throw t
+	} finally {
+		runOnSlave(label: "frontend") {
+			// Always clean the workspace
+			cleanWs()
 		}
 	}
-} catch (Throwable t) {
-	notifyFailure(mattermostChannel: "#dls-software")
-	throw t
-} finally {
-	runOnSlave(label: "frontend") {
-		// Always clean the workspace
-		cleanWs()
-	}
-}
 
-// Some Jenkins steps fail a build without raising (e.g. archiveArtifacts)
-if (currentBuild.currentResult != "SUCCESS") {
-	notifyFailure(mattermostChannel: "#dls-software")
+	// Some Jenkins steps fail a build without raising (e.g. archiveArtifacts)
+	if (currentBuild.currentResult != "SUCCESS") {
+		notifyFailure(mattermostChannel: "#dls-software")
+	}
 }
