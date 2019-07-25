@@ -19,7 +19,7 @@ timestamps {
 					dir("ppu") {
 						checkout scm
 					}
-					wafSetup(projects: ["binutils-gdb@binutils-2_25-branch-nux",
+					wafSetup(projects: ["binutils-gdb@visionary",
 					                    "gcc@nux-on-gcc-4_9_4-release",
 					                    "newlib@master"],
 					         noExtraStage: true)
