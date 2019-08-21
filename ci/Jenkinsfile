@@ -1,10 +1,10 @@
 @Library("jenlib") _
 
-setup = [2: "B291656", 3: "B291673"]
+slurmTestResources = [["partition": "dls", "gres": "B291656", "powercycle": ""],
+                      ["partition": "dls", "gres": "B291673", "powercycle": ""],
+                      ["partition": "cube", "wafer": 62, "fpga-without-aout": 3]]
 configureOptions = ["", "--enable-stack-protector", "--enable-stack-redzone", "--enable-stack-protector --enable-stack-redzone"]
 buildProfiles = ["", "debug", "release"]
-v3_network_power_socket_ip = "129.206.176.148"
-v3_network_power_socket_socket = "3"
 
 timestamps {
 	try {
@@ -37,60 +37,46 @@ timestamps {
 		withWaf() {
 			for (String buildProfile in buildProfiles) {
 				String buildProfileOption = buildProfile.length() ? "--build-profile=${buildProfile}" : ""
-				for (String dlsVersion in [2, 3]) {
-					stage("Toolchain Verification Setup: DLSv${dlsVersion}, build-profile=${buildProfile}") {
-						inSingularity(app: "visionary-dls") {
-							runOnSlave(label: "frontend") {
-								dir("dls_v${dlsVersion}") {
-									wafSetup(projects: ["libnux"],
-									         setupOptions: "--clone-depth=1 " +
-									                       "--dls-version=${dlsVersion} " +
-									                       "${buildProfileOption}",
-									         noExtraStage: true)
-								}
-							}
+				stage("Toolchain Verification Setup: build-profile=${buildProfile}") {
+					inSingularity(app: "visionary-dls") {
+						runOnSlave(label: "frontend") {
+								wafSetup(projects: ["libnux"],
+								         setupOptions: "--clone-depth=1 " +
+								                       "${buildProfileOption}",
+								         noExtraStage: true)
 						}
 					}
+				}
 
-					for (String configureOption in configureOptions) {
-						String runString = "DLSv${dlsVersion}, build-profile: ${buildProfile}, options: ${configureOption}"
-						stage("Toolchain Verification: ${runString}") {
-							onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
-								withModules(modules: ["xilinx/143"]) {
-									withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
-									         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
-										inSingularity(app: "visionary-dls") {
-											dir("dls_v${dlsVersion}") {
-												jesh "waf configure " +
-												     "${configureOption} " +
-												     "--test-timeout=240 " +
-												     "install --test-execnone" +
-												     "|& tee build_dls_\"${runString}\".log"
-											}
-										}
+				for (String configureOption in configureOptions) {
+					String runString = "build-profile: ${buildProfile}, options: ${configureOption}"
+					stage("Toolchain Verification: ${runString}") {
+						onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
+							withModules(modules: ["xilinx/143"]) {
+								withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
+								         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
+									inSingularity(app: "visionary-dls") {
+										jesh "waf configure " +
+										     "${configureOption} " +
+										     "--test-timeout=240 " +
+										     "install --test-execnone" +
+										     "|& tee build_dls_\"${runString}\".log"
 									}
 								}
 							}
+						}
 
-							onSlurmResource(partition: "dls", gres: "${setup[dlsVersion]}", powercycle: "") {
+						for (testResource in slurmTestResources) {
+							onSlurmResource(testResource) {
 								withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
 								         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
 									withModules(modules: ["xilinx/143"]) {
 										inSingularity(app: "visionary-dls") {
-											dir("dls_v${dlsVersion}") {
-												if (dlsVersion == 3) {
-													jesh "waf install --target=pydls --test-execnone"
-													withEnv(["PYTHONPATH+PYDLS=$WORKSPACE/dls_v3/lib"]) {
-														jesh "python hicann-dls-scripts/helper/pll_init.py"
-													}
-												}
-												jesh "waf install -j1 --test-execall"
-											}
+											jesh "waf install -j1 --test-execall"
 										}
 									}
 								}
 							}
-
 							runOnSlave(label: "frontend") {
 								step([$class       : 'XUnitBuilder',
 								      thresholdMode: 1,
@@ -100,11 +86,12 @@ timestamps {
 								      tools        : [[$class               : 'GoogleTestType',
 								                       deleteOutputFiles    : true,
 								                       failIfNotNew         : true,
-								                       pattern              : "dls_v${dlsVersion}/build/test_results/**/*.xml",
+								                       pattern              : "build/test_results/**/*.xml",
 								                       skipNoTestFiles      : false,
 								                       stopProcessingIfError: true]
 								      ]
 								])
+								jesh "rm -rf build/test_results"
 							}
 						}
 					}
@@ -117,8 +104,7 @@ timestamps {
 				warnings canComputeNew: false,
 				         canRunOnFailed: true,
 				         categoriesPattern: '',
-				         parserConfigurations: [[parserName: 'GNU C Compiler 4 (gcc)', pattern: 'dls_v2/build_dls_*.log'],
-				                                [parserName: 'GNU C Compiler 4 (gcc)', pattern: 'dls_v3/build_dls_*.log']],
+				         parserConfigurations: [[parserName: 'GNU C Compiler 4 (gcc)', pattern: 'build_dls_*.log']],
 				         defaultEncoding: '',
 				         excludePattern: '*/python2.7/*',
 				         healthy: '',
