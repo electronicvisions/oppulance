@@ -34,12 +34,11 @@ timestamps {
 			}
 		}
 
-		for (String buildProfile in buildProfiles) {
-			String buildProfileOption = buildProfile.length() ? "--build-profile=${buildProfile}" : ""
-			for (String configureOption in configureOptions) {
+		withWaf() {
+			for (String buildProfile in buildProfiles) {
+				String buildProfileOption = buildProfile.length() ? "--build-profile=${buildProfile}" : ""
 				for (String dlsVersion in [2, 3]) {
-					String runString = "DLSv${dlsVersion}, build-profile: ${buildProfile}, options: ${configureOption}"
-					stage("Toolchain Verification: ${runString}") {
+					stage("Toolchain Verification Setup: DLSv${dlsVersion}, build-profile=${buildProfile}") {
 						inSingularity(app: "visionary-dls") {
 							runOnSlave(label: "frontend") {
 								dir("dls_v${dlsVersion}") {
@@ -51,8 +50,11 @@ timestamps {
 								}
 							}
 						}
+					}
 
-						withWaf() {
+					for (String configureOption in configureOptions) {
+						String runString = "DLSv${dlsVersion}, build-profile: ${buildProfile}, options: ${configureOption}"
+						stage("Toolchain Verification: ${runString}") {
 							onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
 								withModules(modules: ["xilinx/143"]) {
 									withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
@@ -88,22 +90,22 @@ timestamps {
 									}
 								}
 							}
-						}
 
-						runOnSlave(label: "frontend") {
-							step([$class       : 'XUnitBuilder',
-							      thresholdMode: 1,
-							      thresholds   : [[$class           : 'FailedThreshold',
-							                       unstableThreshold: '0'],
-							      ],
-							      tools        : [[$class               : 'GoogleTestType',
-							                       deleteOutputFiles    : true,
-							                       failIfNotNew         : true,
-							                       pattern              : "dls_v${dlsVersion}/build/test_results/**/*.xml",
-							                       skipNoTestFiles      : false,
-							                       stopProcessingIfError: true]
-							      ]
-							])
+							runOnSlave(label: "frontend") {
+								step([$class       : 'XUnitBuilder',
+								      thresholdMode: 1,
+								      thresholds   : [[$class           : 'FailedThreshold',
+								                       unstableThreshold: '0'],
+								      ],
+								      tools        : [[$class               : 'GoogleTestType',
+								                       deleteOutputFiles    : true,
+								                       failIfNotNew         : true,
+								                       pattern              : "dls_v${dlsVersion}/build/test_results/**/*.xml",
+								                       skipNoTestFiles      : false,
+								                       stopProcessingIfError: true]
+								      ]
+								])
+							}
 						}
 					}
 				}
