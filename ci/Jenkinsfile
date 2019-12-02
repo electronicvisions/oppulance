@@ -1,10 +1,13 @@
 @Library("jenlib") _
 
-slurmTestResources = [["partition": "dls", "gres": "B291656", "powercycle": ""],
-                      ["partition": "dls", "gres": "B291673", "powercycle": ""],
-                      ["partition": "cube", "wafer": 62, "fpga-without-aout": 3]]
-configureOptions = ["", "--enable-stack-protector", "--enable-stack-redzone", "--enable-stack-protector --enable-stack-redzone"]
-buildProfiles = ["", "debug", "release"]
+List<Map<String, String>> slurmTestResources = [["partition": "dls", "gres": "B291656", "powercycle": ""],
+                                                ["partition": "dls", "gres": "B291673", "powercycle": ""],
+                                                ["partition": "cube", "wafer": "62", "fpga-without-aout": "3"]]
+List<String> configureOptions = ["",
+                                 "--enable-stack-protector",
+                                 "--enable-stack-redzone",
+                                 "--enable-stack-protector --enable-stack-redzone"]
+List<String> buildProfiles = ["", "debug", "release"]
 
 timestamps {
 	try {
@@ -40,10 +43,10 @@ timestamps {
 				stage("Toolchain Verification Setup: build-profile=${buildProfile}") {
 					inSingularity(app: "visionary-dls") {
 						runOnSlave(label: "frontend") {
-								wafSetup(projects: ["libnux"],
-								         setupOptions: "--clone-depth=1 " +
-								                       "${buildProfileOption}",
-								         noExtraStage: true)
+							wafSetup(projects: ["libnux"],
+							         setupOptions: "--clone-depth=1 " +
+							                       "${buildProfileOption}",
+							         noExtraStage: true)
 						}
 					}
 				}
@@ -91,7 +94,12 @@ timestamps {
 								                       stopProcessingIfError: true]
 								      ]
 								])
-								jesh "rm -rf build/test_results"
+
+								String runId = (testResource.values().join("") +
+								                configureOption +
+								                buildProfile).replaceAll("\\s", "")
+								jesh "mv build/test_results test_results_${runId}"
+								archiveArtifacts "test_results_${runId}/**/*"
 							}
 						}
 					}
