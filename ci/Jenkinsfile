@@ -1,7 +1,6 @@
 @Library("jenlib") _
 
 List<Map<String, String>> slurmTestResources = [["partition": "dls", "gres": "B291656", "powercycle": ""],
-                                                ["partition": "dls", "gres": "B291673", "powercycle": ""],
                                                 ["partition": "cube", "wafer": "62", "fpga-without-aout": "3"]]
 List<String> configureOptions = ["",
                                  "--enable-stack-protector",
@@ -11,33 +10,29 @@ List<String> buildProfiles = ["", "debug", "release"]
 
 timestamps {
 	try {
-		runOnSlave(label: "frontend") {
-			cleanWs()
-		}
-
-		stage("Toolchain Creation") {
-			inSingularity(app: "visionary-dls") {
-				runOnSlave(label: "frontend") {
-					dir("ppu") {
-						checkout scm
+		withWaf() {
+			stage("Toolchain Creation") {
+				inSingularity(app: "visionary-dls") {
+					runOnSlave(label: "frontend") {
+						dir("ppu") {
+							checkout scm
+						}
+						wafSetup(projects: ["binutils-gdb@visionary",
+						                    "gcc@visionary",
+						                    "newlib@master"],
+						         noExtraStage: true)
+						jesh "bash gcc/ci/00_download_prerequisites.sh"
 					}
-					wafSetup(projects: ["binutils-gdb@visionary",
-					                    "gcc@visionary",
-					                    "newlib@master"],
-					         noExtraStage: true)
-					jesh "bash gcc/ci/00_download_prerequisites.sh"
-				}
 
-				onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
-					jesh "bash binutils-gdb/ci/00_build_install.sh"
-					jesh "bash gcc/ci/01_build_install_freestanding.sh"
-					jesh "bash newlib/ci/00_build_install.sh"
-					jesh "bash ppu/ci/00_build_install_libstdc++.sh"
+					onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
+						jesh "bash binutils-gdb/ci/00_build_install.sh"
+						jesh "bash gcc/ci/01_build_install_freestanding.sh"
+						jesh "bash newlib/ci/00_build_install.sh"
+						jesh "bash ppu/ci/00_build_install_libstdc++.sh"
+					}
 				}
 			}
-		}
 
-		withWaf() {
 			for (String buildProfile in buildProfiles) {
 				String buildProfileOption = buildProfile.length() ? "--build-profile=${buildProfile}" : ""
 				stage("Toolchain Verification Setup: build-profile=${buildProfile}") {
@@ -55,16 +50,14 @@ timestamps {
 					String runString = "build-profile: ${buildProfile}, options: ${configureOption}"
 					stage("Toolchain Verification: ${runString}") {
 						onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
-							withModules(modules: ["xilinx/143"]) {
-								withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
-								         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
-									inSingularity(app: "visionary-dls") {
-										jesh "waf configure " +
-										     "${configureOption} " +
-										     "--test-timeout=240 " +
-										     "install --test-execnone" +
-										     "|& tee build_dls_\"${runString}\".log"
-									}
+							withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
+							         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
+								inSingularity(app: "visionary-dls") {
+									jesh "waf configure " +
+									     "${configureOption} " +
+									     "--test-timeout=240 " +
+									     "install --test-execnone" +
+									     "|& tee build_dls_\"${runString}\".log"
 								}
 							}
 						}
@@ -73,10 +66,8 @@ timestamps {
 							onSlurmResource(testResource) {
 								withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
 								         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
-									withModules(modules: ["xilinx/143"]) {
-										inSingularity(app: "visionary-dls") {
-											jesh "waf install -j1 --test-execall"
-										}
+									inSingularity(app: "visionary-dls") {
+										jesh "waf install -j1 --test-execall"
 									}
 								}
 							}
@@ -144,11 +135,6 @@ timestamps {
 	} catch (Throwable t) {
 		notifyFailure(mattermostChannel: "#dls-software")
 		throw t
-	} finally {
-		runOnSlave(label: "frontend") {
-			// Always clean the workspace
-			cleanWs()
-		}
 	}
 
 	// Some Jenkins steps fail a build without raising (e.g. archiveArtifacts)
