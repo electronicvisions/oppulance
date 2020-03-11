@@ -107,38 +107,38 @@ timestamps {
 
 				parallel(parallelBuildProfileVerifications)
 			}
-		}
 
-		stage("Evaluate Compiler Warnings") {
-			runOnSlave(label: "frontend") {
-				warnings canComputeNew: false,
-				         canRunOnFailed: true,
-				         categoriesPattern: '',
-				         parserConfigurations: [[parserName: 'GNU C Compiler 4 (gcc)', pattern: 'build_dls_*.log']],
-				         defaultEncoding: '',
-				         excludePattern: '*/python2.7/*',
-				         healthy: '',
-				         includePattern: '',
-				         messagesPattern: '',
-				         unHealthy: '',
-				         unstableTotalAll: '0',
-				         unstableTotalHigh: '0',
-				         unstableTotalLow: '0',
-				         unstableTotalNormal: '0'
+			stage("Evaluate Compiler Warnings") {
+				runOnSlave(label: "frontend") {
+					warnings canComputeNew: false,
+					         canRunOnFailed: true,
+					         categoriesPattern: '',
+					         parserConfigurations: [[parserName: 'GNU C Compiler 4 (gcc)', pattern: 'build_dls_*.log']],
+					         defaultEncoding: '',
+					         excludePattern: '*/python2.7/*',
+					         healthy: '',
+					         includePattern: '',
+					         messagesPattern: '',
+					         unHealthy: '',
+					         unstableTotalAll: '0',
+					         unstableTotalHigh: '0',
+					         unstableTotalLow: '0',
+					         unstableTotalNormal: '0'
+				}
 			}
-		}
 
-		stage("Deployment") {
-			if (env.GERRIT_EVENT_TYPE == "change-merged") {
-				if (currentBuild.currentResult == "SUCCESS") {
-					runOnSlave(label: "frontend") {
-						deployModule([name: "ppu-toolchain", source: "install"])
+			stage("Deployment") {
+				if (env.GERRIT_EVENT_TYPE == "change-merged") {
+					if (currentBuild.currentResult == "SUCCESS") {
+						runOnSlave(label: "frontend") {
+							deployModule([name: "ppu-toolchain", source: "install"])
+						}
+					} else {
+						echo "Deployment skipped: Unstable build."
 					}
 				} else {
-					echo "Deployment skipped: Unstable build."
+					echo "Deployment skipped: Build was not triggered by a merge event."
 				}
-			} else {
-				echo "Deployment skipped: Build was not triggered by a merge event."
 			}
 		}
 	} catch (Throwable t) {
