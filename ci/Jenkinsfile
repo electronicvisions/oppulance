@@ -78,6 +78,11 @@ timestamps {
 
 								for (testResource in slurmTestResources) {
 									onSlurmResource(testResource) {
+										// On Gerrit setup, reconfigure the FPGA bitfile
+										if (testResource["wafer"] == "62") {
+											configureHxCubeBitfile()
+										}
+
 										dir(buildDir) {
 											withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
 											         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
