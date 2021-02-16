@@ -92,7 +92,7 @@ timestamps {
 									}
 									runOnSlave(label: "frontend") {
 										dir(buildDir) {
-											step([$class       : 'XUnitBuilder',
+											step([$class       : 'XUnitPublisher',
 											      thresholdMode: 1,
 											      thresholds   : [[$class           : 'FailedThreshold',
 											                       unstableThreshold: '0'],
