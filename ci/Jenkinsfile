@@ -1,6 +1,9 @@
 @Library("jenlib") _
 
-List<Map<String, String>> slurmTestResources = isTriggeredByGerrit() ? [] : [["partition": "cube", "wafer": "62", "fpga-without-aout": "3"]]
+List<Map<String, String>> slurmTestResources = isTriggeredByGerrit() ? [] : [
+		["partition": "cube", "wafer": "62", "fpga-without-aout": "0"], // HXv2
+		["partition": "cube", "wafer": "62", "fpga-without-aout": "3"]  // HXv1
+]
 List<String> configureOptions = [""]
 List<String> buildProfiles = [""]
 
