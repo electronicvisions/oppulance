@@ -66,7 +66,9 @@ timestamps {
 						for (String configureOption in configureOptions) {
 							String runString = "build-profile: ${profileLocal}, options: ${configureOption}"
 							stage("Toolchain Verification: ${runString}") {
-								onSlurmResource(partition: "jenkins", "cpus-per-task": "8") {
+								onSlurmResource(partition: "jenkins",
+								                "cpus-per-task": "8",
+								                time: "04:00:00") {
 									dir(buildDir) {
 										withEnv(["SINGULARITYENV_PREPEND_PATH+INSTALL=$WORKSPACE/install/bin",
 										         "SINGULARITYENV_LD_LIBRARY_PATH+INSTALL=$WORKSPACE/install/lib"]) {
