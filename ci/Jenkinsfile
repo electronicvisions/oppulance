@@ -30,7 +30,7 @@ timestamps {
 							checkout scm
 						}
 						wafSetup(projects: ["binutils-gdb@visionary",
-						                    "gcc@visionary",
+						                    "gcc@gcc-8_5-branch-nux",
 						                    "newlib@master"],
 						         noExtraStage: true)
 						jesh "bash gcc/ci/00_download_prerequisites.sh"
