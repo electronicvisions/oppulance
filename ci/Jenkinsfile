@@ -1,24 +1,20 @@
 @Library("jenlib") _
 
-List<Map<String, String>> slurmTestResources = isTriggeredByGerrit() ? [] : [
+List<Map<String, String>> slurmTestResources = [
 		["partition": "cube", "wafer": "62", "fpga-without-aout": "0"], // HXv2
-		["partition": "cube", "wafer": "62", "fpga-without-aout": "3"]  // HXv1
+		["partition": "cube", "wafer": "62", "fpga-without-aout": "3"]  // HXv3
 ]
-List<String> configureOptions = [""]
-List<String> buildProfiles = [""]
-
-if (!isTriggeredByGerrit()) {
-	configureOptions.addAll([
-			"--enable-stack-protector",
-			"--enable-stack-redzone",
-			"--enable-stack-protector --enable-stack-redzone"
-	])
-
-	buildProfiles.addAll([
-			"debug",
-			"release"
-	])
-}
+List<String> configureOptions = [
+		"",
+		"--enable-stack-protector",
+		"--enable-stack-redzone",
+		"--enable-stack-protector --enable-stack-redzone"
+]
+List<String> buildProfiles = [
+		"",
+		"debug",
+		"release"
+]
 
 timestamps {
 	try {
