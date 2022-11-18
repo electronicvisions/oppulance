@@ -12,8 +12,6 @@ List<String> configureOptions = [
 ]
 List<String> buildProfiles = [
 		"",
-		"debug",
-		"release"
 ]
 
 timestamps {
