@@ -1,8 +1,7 @@
 @Library("jenlib") _
 
 List<Map<String, String>> slurmTestResources = [
-		["partition": "cube", "wafer": "62", "fpga-without-aout": "0"], // HXv2
-		["partition": "cube", "wafer": "62", "fpga-without-aout": "3"]  // HXv3
+		getHxTestResource(3),
 ]
 List<String> configureOptions = [
 		"",
